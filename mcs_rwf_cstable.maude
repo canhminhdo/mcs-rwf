@@ -59,6 +59,8 @@ fmod OCOMP is
     op (#maxAlloc:_) : Nat -> OComp [ctor] .
     op (#psFree:_) : Nat -> OComp [ctor] .
     op (#ps:_) : Nat -> OComp [ctor] .
+    op (#crash:_) : Nat -> OComp [ctor] .
+    op (isMutex:_) : Bool -> OComp [ctor] .
 endfm
 
 view OComp from TRIV to OCOMP is
@@ -92,6 +94,8 @@ fmod CONFIG is
         (#maxAlloc: 6)
         (#psFree: 2)
         (#ps: 2)
+        (#crash: 1)
+        (isMutex: true)
     } .
 
     eq init3 = {
@@ -107,13 +111,15 @@ fmod CONFIG is
         (#maxAlloc: 6)
         (#psFree: 3)
         (#ps: 3)
+        (#crash: 1)
+        (isMutex: true)
     } .
 endfm
 
 mod MCS-RWF is
     pr CONFIG .
 
-    vars P : Pid .
+    vars P Q : Pid .
     vars B B' : Bool .
     vars OCs : Soup{OComp} .
     vars S : PState .
@@ -167,8 +173,8 @@ mod MCS-RWF is
     rl [setPred] : {(pc[P]: en7) (pred[P]: R) (temp[P]: R') OCs}
     => {(pc[P]: en8) (pred[P]: R') (temp[P]: R') OCs} .
 
-    rl [crash] : {(pc[P]: en7) (crash: B) OCs}
-    => {(pc[P]: re) (crash: true) OCs} .
+    crl [crash] : {(pc[P]: en7) (crash: B) (#crash: N) OCs}
+    => {(pc[P]: re) (crash: true) (#crash: dec(N)) OCs} if N > 0 .
 
     rl [checkPred2] : {(pc[P]: en8) (pred[P]: R) OCs}
     => {(pc[P]: (if R =/= null then en9 else cs fi)) (pred[P]: R) OCs} .
@@ -207,6 +213,9 @@ mod MCS-RWF is
 
     rl [stutter] : {(pc[P]: terminated) OCs}
     => {(pc[P]: terminated) OCs} .
+    
+    crl [mutex] : {(pc[P]: cs) (pc[Q]: cs) (#crash: 0) (crash: false) (isMutex: B) OCs}
+    => {(pc[P]: cs) (pc[Q]: cs) (#crash: 0) (crash: false) (isMutex: false) OCs} if B .
 endm
 
 in model-checker .
@@ -219,6 +228,8 @@ mod MCS-RWF-PREDS is
     op inCs : Pid -> Prop .
     op inRe : Pid -> Prop .
     op noCrash : -> Prop .
+    op noCrashAnyMore : -> Prop .
+    op mutex : -> Prop .
 
     var PROP : Prop .
     var OCs :  Soup{OComp} .
@@ -227,6 +238,8 @@ mod MCS-RWF-PREDS is
     eq {(pc[P]: cs) OCs} |= inCs(P) = true .
     eq {(pc[P]: re) OCs} |= inRe(P) = true .
     eq {(crash: false) OCs} |= noCrash = true .
+    eq {(crash: false) (#crash: 0) OCs} |= noCrashAnyMore = true .
+    eq {(isMutex: true) OCs} |= mutex = true .
     eq {OCs} |= PROP = false [owise] .
 endm
 
@@ -237,8 +250,12 @@ mod MCS-RWF-CHECK is
 
     op mutex : -> Formula .
     eq mutex = ([] ~(inCs(p1) /\ inCs(p2))) .
+
+    op cstable : -> Formula .
+    eq cstable = noCrashAnyMore |-> mutex .
 endm
 
-reduce in MCS-RWF-CHECK : modelCheck(init, mutex) .
-reduce in MCS-RWF-CHECK : modelCheck(init, ([] noCrash) -> mutex) .
-reduce in MCS-RWF-CHECK : modelCheck(init, [] (noCrash -> ~ (inCs(p1) /\ inCs(p2)))) .
+--- reduce in MCS-RWF-CHECK : modelCheck(init, mutex) .
+--- reduce in MCS-RWF-CHECK : modelCheck(init, ([] noCrash) -> mutex) .
+--- reduce in MCS-RWF-CHECK : modelCheck(init, [] (noCrash -> ~ (inCs(p1) /\ inCs(p2)))) .
+reduce in MCS-RWF-CHECK : modelCheck(init, cstable) .
