@@ -10,8 +10,16 @@ fmod PID is
     ops p1 p2 p3 : -> Pid [ctor] .
 endfm
 
-fmod NODE is
+fmod NAT+DEC is
     pr NAT .
+    op dec : Nat -> Nat .
+    var N : Nat .
+    eq dec(0) = 0 .
+    eq dec(s(N)) = N .
+endfm
+
+fmod NODE is
+    pr NAT+DEC .
     pr BOOL .
     sorts NodeRef Node .
     subsort Nat < NodeRef .
@@ -32,13 +40,6 @@ fmod PSTATE is
     ops FREE INIT TRY INCS LEAVE : -> PState [ctor] .
 endfm
 
-fmod SOUP{D :: TRIV} is
-    sort Soup{D} .
-    subsort D$Elt < Soup{D} .
-    op empty : -> Soup{D} [ctor] .
-    op __ : Soup{D} Soup{D} -> Soup{D} [ctor assoc comm id: empty] .
-endfm
-
 fmod OCOMP is
     pr LABEL .
     pr PID .
@@ -52,16 +53,24 @@ fmod OCOMP is
     op (mine[_]:_) : Pid NodeRef -> OComp [ctor] .
     op (pred[_]:_) : Pid NodeRef -> OComp [ctor] .
     op (temp[_]:_) : Pid NodeRef -> OComp [ctor] .
-    op (crash[_]:_) : Pid Bool -> OComp [ctor] .
+    op (crash:_) : Bool -> OComp [ctor] .
     op (env:_) : Env -> OComp [ctor] .
-    op (count:_) : Nat -> OComp [ctor] .
-    op (bound:_) : Nat -> OComp [ctor] .
-    op (#crash:_) : Nat -> OComp [ctor] .
+    op (ref:_) : Nat -> OComp [ctor] .
+    op (#maxAlloc:_) : Nat -> OComp [ctor] .
+    op (#psFree:_) : Nat -> OComp [ctor] .
+    op (#ps:_) : Nat -> OComp [ctor] .
 endfm
 
 view OComp from TRIV to OCOMP is
     sort Elt to OComp .
 endv
+
+fmod SOUP{D :: TRIV} is
+    sort Soup{D} .
+    subsort D$Elt < Soup{D} .
+    op empty : -> Soup{D} [ctor] .
+    op __ : Soup{D} Soup{D} -> Soup{D} [ctor assoc comm id: empty] .
+endfm
 
 fmod CONFIG is
     pr SOUP{OComp} .
@@ -77,11 +86,12 @@ fmod CONFIG is
         (mine[p1]: null) (mine[p2]: null)
         (pred[p1]: null) (pred[p2]: null)
         (temp[p1]: null) (temp[p2]: null)
-        (crash[p1]: false) (crash[p2]: false)
+        (crash: false)
         (env: empty)
-        (count: 0)
-        (bound: 6)
-        (#crash: 1)
+        (ref: 0)
+        (#maxAlloc: 6)
+        (#psFree: 2)
+        (#ps: 2)
     } .
 
     eq init3 = {
@@ -91,11 +101,12 @@ fmod CONFIG is
         (mine[p1]: null) (mine[p2]: null) (mine[p3]: null)
         (pred[p1]: null) (pred[p2]: null) (pred[p3]: null)
         (temp[p1]: null) (temp[p2]: null) (temp[p3]: null)
-        (crash[p1]: false) (crash[p2]: false) (crash[p3]: false)
+        (crash: false)
         (env: empty)
-        (count: 0)
-        (bound: 6)
-        (#crash: 1)
+        (ref: 0)
+        (#maxAlloc: 6)
+        (#psFree: 3)
+        (#ps: 3)
     } .
 endfm
 
@@ -103,15 +114,14 @@ mod MCS-RWF is
     pr CONFIG .
 
     vars P : Pid .
-    vars L : Label .
     vars B B' : Bool .
     vars OCs : Soup{OComp} .
     vars S : PState .
-    vars N C C' : Nat .
+    vars N N' C C' : Nat .
     vars E : Env .
     vars R R' R'' RN RN' : NodeRef .
 
-    rl [recover] : {(pc[P]: re) (state[P]: S) (pred[P]: R) (mine[P]: R') (crash[P]: B) OCs}
+    rl [recover] : {(pc[P]: re) (state[P]: S) (pred[P]: R) (mine[P]: R') (#psFree: N) OCs}
     => {(pc[P]: (if S == LEAVE then
                     ex1
                 else (
@@ -124,19 +134,20 @@ mod MCS-RWF is
         (state[P]: (if S == FREE then INIT else S fi))
         (pred[P]: R)
         (mine[P]: (if S == FREE then null else R' fi))
-        (crash[P]: false) OCs} .
+        (#psFree: dec(N))
+        OCs} .
 
     rl [checkState1] : {(pc[P]: en1) (state[P]: S) OCs}
     => {(pc[P]: (if S == INIT then en2 else en4 fi)) (state[P]: S) OCs} .
 
-    crl [terminated] : {(pc[P]: en2) (mine[P]: R) (count: C) (bound: C') OCs}
-    => {(pc[P]: if R == null then terminated else en3 fi) (mine[P]: R) (count: C) (bound: C') OCs}
+    crl [terminated] : {(pc[P]: en2) (mine[P]: R) (ref: C) (#maxAlloc: C') OCs}
+    => {(pc[P]: if R == null then terminated else en3 fi) (mine[P]: R) (ref: C) (#maxAlloc: C') OCs}
     if C == C' .
 
-    crl [initMine] : {(pc[P]: en2) (mine[P]: R) (count: C) (bound: C') (env: E) OCs}
+    crl [initMine] : {(pc[P]: en2) (mine[P]: R) (ref: C) (#maxAlloc: C') (env: E) OCs}
     => {(pc[P]: en3) (mine[P]: (if R == null then C else R fi))
-        (count: (if R == null then (C + 1) else C fi))
-        (bound: C')
+        (ref: (if R == null then (C + 1) else C fi))
+        (#maxAlloc: C')
         (env: (if R == null then insert(C, (null, false), E) else E fi))
         OCs}
     if C < C' .
@@ -156,12 +167,8 @@ mod MCS-RWF is
     rl [setPred] : {(pc[P]: en7) (pred[P]: R) (temp[P]: R') OCs}
     => {(pc[P]: en8) (pred[P]: R') (temp[P]: R') OCs} .
 
-    rl [crash] : {(pc[P]: en7) (crash[P]: B) OCs}
-    => {(pc[P]: re) (crash[P]: true) OCs} .
-
-    --- limit number of crashes
-    --- crl [crash] : {(pc[P]: en7) (crash[P]: B) (#crash: N) OCs}
-    --- => {(pc[P]: re) (crash[P]: true) (#crash: sd(N,1)) OCs} if N > 0 .
+    rl [crash] : {(pc[P]: en7) (crash: B) OCs}
+    => {(pc[P]: re) (crash: true) OCs} .
 
     rl [checkPred2] : {(pc[P]: en8) (pred[P]: R) OCs}
     => {(pc[P]: (if R =/= null then en9 else cs fi)) (pred[P]: R) OCs} .
@@ -195,8 +202,8 @@ mod MCS-RWF is
     => {(pc[P]: ex4) (mine[P]: R) (env: (R |-> (RN, B), E)) OCs}
     if RN == R .
 
-    rl [goToRecover] : {(pc[P]: ex4) (state[P]: S) OCs}
-    => {(pc[P]: re) (state[P]: FREE) OCs} .
+    rl [goToRecover] : {(pc[P]: ex4) (state[P]: S) (#ps: N) (#psFree: N') (crash: B) OCs}
+    => {(pc[P]: re) (state[P]: FREE) (#ps: N) (#psFree: s(N')) (crash: (if s(N') == N then false else B fi)) OCs} .
 
     rl [stutter] : {(pc[P]: terminated) OCs}
     => {(pc[P]: terminated) OCs} .
@@ -211,17 +218,15 @@ mod MCS-RWF-PREDS is
 
     op inCs : Pid -> Prop .
     op inRe : Pid -> Prop .
-    op crashed : Pid -> Prop .
+    op noCrash : -> Prop .
 
-    var C : Config .
     var PROP : Prop .
     var OCs :  Soup{OComp} .
-    vars P Q : Pid .
-    var S : PState .
+    var P : Pid .
 
     eq {(pc[P]: cs) OCs} |= inCs(P) = true .
     eq {(pc[P]: re) OCs} |= inRe(P) = true .
-    eq {(crash[P]: B:Bool) OCs} |= crashed(P) = B:Bool .
+    eq {(crash: false) OCs} |= noCrash = true .
     eq {OCs} |= PROP = false [owise] .
 endm
 
@@ -237,4 +242,5 @@ mod MCS-RWF-CHECK is
 endm
 
 reduce in MCS-RWF-CHECK : modelCheck(init, mutex) .
-reduce in MCS-RWF-CHECK : modelCheck(init, ([] ~ (crashed(p1) \/ crashed(p2))) -> mutex) .
+reduce in MCS-RWF-CHECK : modelCheck(init, ([] noCrash) -> mutex) .
+reduce in MCS-RWF-CHECK : modelCheck(init, [] (noCrash -> ~ (inCs(p1) /\ inCs(p2)))) .
