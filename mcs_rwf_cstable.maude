@@ -252,7 +252,7 @@ mod MCS-RWF-CHECK is
     eq mutex = ([] ~(inCs(p1) /\ inCs(p2))) .
 
     op cstable : -> Formula .
-    eq cstable = noCrashAnyMore |-> mutex .
+    eq cstable = noCrashAnyMore |-> [] mutex .
 endm
 
 --- reduce in MCS-RWF-CHECK : modelCheck(init, mutex) .
