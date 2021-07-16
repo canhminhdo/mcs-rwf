@@ -1,0 +1,269 @@
+fmod LABEL is
+  sort Label .
+  ops re terminal : -> Label [ctor] .
+  ops en1 en2 en3 en4 en5 en6 en7 en8 en9 en10 : -> Label [ctor] .
+  ops cs ex1 ex2 ex3 ex4 : -> Label [ctor] .
+endfm
+
+fmod PID is
+  sort Pid .
+  --- null is a dummy process ID.
+  ops p1 p2 p3 null : -> Pid [ctor] .
+  ops q1 q2 q3 q4 q5 q6 q7 q8 q9 q10 q11 q12 q13 q14 q15 : -> Pid .
+  --- ops q16 q17 q18 q19 q20 : -> Pid .
+endfm
+
+fmod NAT+DEC is
+  pr NAT .
+  op dec : Nat -> Nat .
+  var N : Nat .
+  eq dec(0) = 0 .
+  eq dec(s(N)) = N .
+endfm
+
+fmod SIMPLE-LIST{X :: TRIV} is
+  pr NAT .
+  sort List{X} .
+  subsort X$Elt < List{X} .
+  op empty : -> List{X} [ctor] .
+  op _ _ : List{X} List{X} -> List{X} [assoc id: empty ctor] .
+endfm
+
+view ViewPid from TRIV to PID is
+  sort Elt to Pid .
+endv
+
+fmod PSTATE is
+  sort PState .
+  ops FREE INIT TRY InCS LEAVE : -> PState [ctor] .
+endfm
+
+fmod SOUP{D :: TRIV} is
+  sort Soup{D} .
+  subsort D$Elt < Soup{D} .
+  op empty : -> Soup{D} [ctor] .
+  op _ _ : Soup{D} Soup{D} -> Soup{D} [ctor assoc comm id: empty] .
+endfm
+
+fmod OCOMP is
+  pr LABEL .
+  pr PID .
+  pr PSTATE .
+  pr SIMPLE-LIST{ViewPid} * (sort List{ViewPid} to ListPid ) .
+  sort OComp .
+  --- observable components
+  op (tail:_) : Pid -> OComp [ctor] .
+  op (pc[_]:_) : Pid Label -> OComp [ctor] .
+  op (next[_]:_) : Pid Pid -> OComp [ctor] .
+  op (lock[_]:_) : Pid Bool -> OComp [ctor] .
+  op (pred[_]:_) : Pid Pid -> OComp [ctor] .
+  op (state[_]:_) : Pid PState -> OComp [ctor] .  --- global
+  op (mine[_]:_) : Pid Pid -> OComp [ctor] .
+  --- op (tran:_) : Tran -> OComp [ctor] .
+  op (temp[_]:_) : Pid Pid -> OComp [ctor] .
+  op (nodes:_) : ListPid -> OComp [ctor] .
+  op (crash:_) : Bool -> OComp [ctor] .
+  op (noPsFree:_) : Nat -> OComp [ctor] .
+endfm
+  
+view OComp from TRIV to OCOMP is
+  sort Elt to OComp .
+endv
+
+fmod CONFIG is
+  pr SOUP{OComp} .
+  sort Config .
+  op {_} : Soup{OComp} -> Config [ctor] .
+  op init : -> Config .
+
+  --- eq init
+  --- = {(tail: null)
+  ---      (pc[p1]: re) (pc[p2]: re) (pc[p3]: re) 
+  ---      (next[p1]: null) (next[p2]: null) (next[p3]: null)
+  ---      (lock[p1]: false) (lock[p2]: false) (lock[p3]: false)
+  ---      (pred[p1]: null) (pred[p2]: null) (pred[p3]: null)
+  ---      (mine[p1]: null) (mine[p2]: null) (mine[p3]: null)
+  ---      (temp[p1]: null) (temp[p2]: null) (temp[p3]: null)
+  ---      (state[p1]: FREE) (state[p2]: FREE) (state[p3]: FREE)
+  ---      (next[q1]: null) (next[q2]: null) (next[q3]: null) (next[q4]: null) (next[q5]: null) 
+  ---      (next[q6]: null) (next[q7]: null) (next[q8]: null) (next[q9]: null)
+  ---      (lock[q1]: false) (lock[q2]: false) (lock[q3]: false) (lock[q4]: false) (lock[q5]: false) 
+  ---      (lock[q6]: false) (lock[q7]: false) (lock[q8]: false) (lock[q9]: false)
+  ---      (pred[q1]: null) (pred[q2]: null) (pred[q3]: null) (pred[q4]: null) (pred[q5]: null) 
+  ---      (pred[q6]: null) (pred[q7]: null) (pred[q8]: null) (pred[q9]: null)
+  ---      (nodes: (q1 q2 q3 q4 q5 q6 q7 q8 q9))
+  ---      (crash: false)
+  ---      (noPsFree: 3)} .
+
+  op init2 : -> Config .
+  eq init2
+  = {(tail: null)
+       (pc[p1]: re) (pc[p2]: re)
+       (next[p1]: null) (next[p2]: null)
+       (lock[p1]: false) (lock[p2]: false)
+       (pred[p1]: null) (pred[p2]: null)
+       (mine[p1]: null) (mine[p2]: null)
+       (temp[p1]: null) (temp[p2]: null)
+       (state[p1]: FREE) (state[p2]: FREE)
+       (next[q1]: null) (next[q2]: null) (next[q3]: null) (next[q4]: null) (next[q5]: null) (next[q6]: null)
+       (lock[q1]: false) (lock[q2]: false) (lock[q3]: false) (lock[q4]: false) (lock[q5]: false) (lock[q6]: false)
+       (pred[q1]: null) (pred[q2]: null) (pred[q3]: null) (pred[q4]: null) (pred[q5]: null) (pred[q6]: null)
+       (nodes: (q1 q2 q3 q4 q5 q6))
+       (crash: false)
+       (noPsFree: 2)} .
+
+endfm
+
+mod MCS-ADAP is
+  pr CONFIG .
+  pr NAT+DEC .
+  --- Maude vars
+  vars P Q Q1 Q2 Q3 Q4 Q5 Q6 : Pid .
+  var L : Label .
+  var B : Bool .
+  var OCs : Soup{OComp} .
+  var S : PState .
+  var LP : ListPid .
+  var N : Nat .
+
+  --- recover 
+  rl [rcv] : {(pc[P]: re) (state[P]: S) (pred[P]: Q) (mine[P]: Q1) (noPsFree: N) OCs} 
+  => {(pc[P]: (if S == LEAVE then 
+                  ex1 
+              else (
+                if S == TRY and Q == Q1 then
+                  ex1
+                else
+                  en1
+                fi)
+              fi))
+    (state[P]: (if S == FREE then INIT else S fi)) (pred[P]: Q) 
+    (mine[P]: (if S == FREE then null else Q1 fi))
+    (noPsFree: (if S == FREE then dec(N) else N fi)) OCs} .
+
+  --- check state1
+  rl [chsta] : {(pc[P]: en1) (state[P]: S) OCs} 
+  => {(pc[P]: (if S == INIT then en2 else en4 fi)) (state[P]: S) OCs} .
+  
+  rl [terminate] : {(pc[P]: en2) (mine[P]: null) (nodes: empty) OCs} 
+  => {(pc[P]: terminal) (mine[P]: null) (nodes: empty) OCs} .
+
+  --- check state 2
+  rl [initMine] : {(pc[P]: en2) (mine[P]: Q) (nodes: (Q1 LP)) OCs} 
+  => {(pc[P]: en3) (mine[P]: (if Q == null then Q1 else Q fi)) 
+      (nodes: (if Q == null then LP else (Q1 LP) fi)) OCs} .
+  
+  --- initialize
+  rl [init] : {(pc[P]: en3) (mine[P]: Q) (next[Q]: Q1) (lock[Q]: B) 
+    (pred[P]: Q2) (state[P]: S) OCs} 
+  => {(pc[P]: en4) (mine[P]: Q) (next[Q]: null) (lock[Q]: true)
+    (pred[P]: Q) (state[P]: TRY) OCs} .
+  
+  --- check state2
+  rl [chsta2] : {(pc[P]: en4) (state[P]: S) OCs} 
+  => {(pc[P]: (if S == TRY then en5 else ex1 fi)) (state[P]: S) OCs} .
+  
+  --- check pred
+  rl [chprd] : {(pc[P]: en5) (pred[P]: Q) (mine[P]: Q1) OCs} 
+  => {(pc[P]: (if Q == Q1 then en6 else en8 fi)) 
+      (pred[P]: Q) (mine[P]: Q1) OCs} .
+
+  --- set tail
+  rl [sttail] : {(pc[P]: en6) (tail: Q) (mine[P]: Q1) (temp[P]: Q2) OCs} 
+  => {(pc[P]: en7) (tail: Q1) (mine[P]: Q1) (temp[P]: Q) OCs} .
+
+  --- set pred
+  rl [stprd] : {(pc[P]: en7) (pred[P]: Q) (temp[P]: Q1) OCs} 
+  => {(pc[P]: en8) (pred[P]: Q1) (temp[P]: Q1) OCs} .
+
+  --- check pred2
+  rl [chprd2] : {(pc[P]: en8) (pred[P]: Q) OCs} 
+  => {(pc[P]: (if Q == null then cs else en9 fi)) (pred[P]: Q) OCs} .
+
+  --- set next
+  rl [stnxt] : {(pc[P]: en9) (pred[P]: Q) (next[Q]: Q1) (mine[P]: Q2) OCs} 
+  => {(pc[P]: (if Q1 == null then en10 else cs fi)) 
+    (pred[P]: Q) (next[Q]: (if Q1 == null then Q2 else Q1 fi))
+      (mine[P]: Q2) OCs} .
+
+  --- check lock
+  rl [chlck] : {(pc[P]: en10) (mine[P]: Q) (lock[Q]: false) OCs} 
+  => {(pc[P]: cs) (mine[P]: Q) (lock[Q]: false) OCs} .
+
+  --- exit
+  rl [exit] : {(pc[P]: cs) (state[P]: S) OCs} 
+  => {(pc[P]: ex1) (state[P]: InCS) OCs} .
+
+  --- set state
+  rl [ststa] : {(pc[P]: ex1) (tail: Q) (mine[P]: Q1) (state[P]: S) OCs} 
+  => {(pc[P]: ex2) (tail: (if Q == Q1 then null else Q fi)) 
+      (mine[P]: Q1) (state[P]: LEAVE) OCs} .
+
+  --- set next2
+  rl [stnxt2] : {(pc[P]: ex2) (mine[P]: Q) (next[Q]: Q1) OCs} 
+  => {(pc[P]: (if Q1 == null then ex4 else ex3 fi)) (mine[P]: Q) 
+      (next[Q]: (if Q1 == null then Q else Q1 fi)) OCs} .
+
+  --- set lock
+  rl [stlck] : {(pc[P]: ex3) (mine[P]: Q) (next[Q]: Q1) (lock[Q1]: B) OCs} 
+  => {(pc[P]: ex4) (mine[P]: Q) (next[Q]: Q1) (lock[Q1]: false) OCs} .
+
+  --- go to rcv
+  rl [go2rcv] : {(pc[P]: ex4) (state[P]: S) (noPsFree: N) (crash: B) OCs} 
+  => {(pc[P]: re) (state[P]: FREE) (noPsFree: s(N))  
+      (crash: (if s(N) == 2 then false else B fi)) OCs} .
+
+  rl [stutter] : {(pc[P]: terminal) OCs} 
+    => {(pc[P]: terminal) OCs} .
+
+  rl [crash] : {(pc[P]: en7) (next[P]: Q) (crash: B)OCs} 
+  => {(pc[P]: re) (next[P]: null) (crash: true) OCs} .
+endm
+
+in model-checker .
+
+mod MCS-ADAP-PREDS is
+  pr MCS-ADAP .
+  inc SATISFACTION .
+  subsort Config < State .
+  
+  op inCs : Pid -> Prop .
+  op inRe : Pid -> Prop .
+  
+  op emptyList : -> Prop .
+  op nrc : -> Prop .
+
+  var C : Config .
+  var PROP : Prop .
+  var OCs :  Soup{OComp} .
+  vars P Q Q1 : Pid .
+  var S : PState .
+  var LP : ListPid .
+
+  eq {(pc[P] : cs) OCs} |= inCs(P) = true .
+  eq {(pc[P] : re) OCs} |= inRe(P) = true .
+  
+  eq {(nodes: empty) OCs} |= emptyList = true .
+  eq {(crash: B:Bool) OCs} |= nrc = not B:Bool .
+
+  eq {OCs} |= PROP = false [owise] .
+endm
+
+mod MCS-ADAP-CHECK is
+  inc MCS-ADAP-PREDS .
+  inc MODEL-CHECKER .
+  inc LTL-SIMPLIFIER .
+
+  op mutex : -> Formula .
+
+  vars P Q : Pid .
+  vars C : Config .
+
+  eq mutex = ([] ~(inCs(p1) /\ inCs(p2))) .
+
+endm
+
+
+--- reduce in MCS-ADAP-CHECK : modelCheck(init2, mutex) .
+--- reduce in MCS-ADAP-CHECK : modelCheck(init2, ([] nrc) -> mutex) .
+reduce in MCS-ADAP-CHECK : modelCheck(init2, [] (nrc -> (~ (inCs(p1) /\ inCs(p2))))) .
