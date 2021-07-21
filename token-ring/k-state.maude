@@ -46,23 +46,23 @@ mod K-STATE is
 
     op #enabled* : Config Nat -> Nat .
     eq #enabled*({OCs}, I) = if I == 0 then
-                                isEnableBottom({OCs}, 0)
+                                isEnableBottom({OCs}, I)
                             else
-                                isEnableOthers({OCs}, I) + #enabled*({OCs}, sd(I,1))
+                                isEnableOther({OCs}, I) + #enabled*({OCs}, sd(I,1))
                             fi .
 
     op isEnableBottom : Config Nat -> Nat .
     ceq isEnableBottom({(pc[J]: L) (pc[I]: S) (#machines: N) OCs}, I) = 1 if I == 0 /\ J := sd(N,1) /\ L == S .
     eq isEnableBottom({OCs}, I) = 0 [owise] .
 
-    op isEnableOthers : Config Nat -> Nat .
-    ceq isEnableOthers({(pc[J]: L) (pc[I]: S) (#machines: N) OCs}, I) = 1 if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ L =/= S .
-    eq isEnableOthers({OCs}, I) = 0 [owise] .
+    op isEnableOther : Config Nat -> Nat .
+    ceq isEnableOther({(pc[J]: L) (pc[I]: S) (#machines: N) OCs}, I) = 1 if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ L =/= S .
+    eq isEnableOther({OCs}, I) = 0 [owise] .
 
     crl [bottom] : {(pc[J]: L) (pc[I]: S) (#machines: N) (k-state: K) OCs}
     => {(pc[J]: L) (pc[I]: ((S + 1) rem K )) (#machines: N) (k-state: K) OCs} if I == 0 /\ J := sd(N,1) /\ L == S .
 
-    crl [others] : {(pc[J]: L) (pc[I]: S) (#machines: N) OCs}
+    crl [other] : {(pc[J]: L) (pc[I]: S) (#machines: N) OCs}
     => {(pc[J]: L) (pc[I]: L)  (#machines: N) OCs} if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ L =/= S .
 endm
 

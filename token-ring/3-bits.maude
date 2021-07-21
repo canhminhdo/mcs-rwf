@@ -1,0 +1,187 @@
+***
+*** Token Ring in Three Bits - Self-stabilization
+*** each process i has three Boolean varialbes: e[i], t[i], read[i]
+*** e[i] and t[i] are read and written actions. They are also read,
+*** but not written in the actions of the right neighbor p[i + 1 mod n].
+*** ready[i] is local to process i which is read and written only in actions
+*** of process it.
+*** e[i] indicates whether p[i] is enable.
+*** t[i] indicates whether p[i] has token.
+*** p[i] has T token iff p[i] has a token and t[i] = true, F token otherwise.
+
+fmod SOUP{D :: TRIV} is
+    sort Soup{D} .
+    subsort D$Elt < Soup{D} .
+    op empty : -> Soup{D} [ctor] .
+    op __ : Soup{D} Soup{D} -> Soup{D} [ctor assoc comm id: empty] .
+endfm
+
+fmod OCOMP is
+    pr NAT .
+    sort OComp .
+    op (enable[_]:_) : Nat Bool -> OComp [ctor] .
+    op (token[_]:_) : Nat Bool -> OComp [ctor] .
+    op (ready[_]:_) : Nat Bool -> OComp [ctor] .
+    op (#pc:_) : Nat -> OComp [ctor] .
+endfm
+
+view OComp from TRIV to OCOMP is
+    sort Elt to OComp .
+endv
+
+fmod CONFIG is
+    pr SOUP{OComp} .
+    sort Config .
+    op {_} : Soup{OComp} -> Config [ctor] .
+    ops init init1 : -> Config .
+    eq init = { (#pc: 3)
+                (enable[0]: false) (token[0]: false) (ready[0]: true)
+                (enable[1]: true) (token[1]: true) (ready[1]: true)
+                (enable[2]: true) (token[2]: false) (ready[2]: true) } .
+endfm
+
+mod 3-BITS is
+    pr CONFIG .
+
+    vars I J : Nat .
+    vars N : Nat .
+    vars E E' T T' R R' : Bool .
+    vars OCs : Soup{OComp} .
+
+    *** calculate the number of tokens
+    op #token : Config -> Nat .
+    eq #token({(#pc: N) OCs}) = #token*({(#pc: N) OCs}, sd(N,1)) .
+
+    op #token* : Config Nat -> Nat .
+    eq #token*({OCs}, I) = if I == 0 then
+                                isTokenBottom({OCs}, I)
+                            else
+                                isTokenOther({OCs}, I) + #token*({OCs}, sd(I,1))
+                            fi .
+
+    op isTokenBottom : Config Nat -> Nat .
+    ceq isTokenBottom(
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}, I) = 1 if I == 0 /\ J := sd(N,1) /\ T == T' .
+    eq isTokenBottom({OCs}, I) = 0 [owise] .
+
+    op isTokenOther : Config Nat -> Nat .
+    ceq isTokenOther(
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}, I) = 1 if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ T =/= T' .
+    eq isTokenOther({OCs}, I) = 0 [owise] .
+
+    *** calculate the number of enables
+    op #enabled : Config -> Nat .
+    eq #enabled({(#pc: N) OCs}) = #enabled*({(#pc: N) OCs}, sd(N,1)) .
+
+    op #enabled* : Config Nat -> Nat .
+    eq #enabled*({OCs}, I) = if I == 0 then
+                                isEnableBottom({OCs}, I)
+                            else
+                                isEnableOther({OCs}, I) + #enabled*({OCs}, sd(I,1))
+                            fi .
+
+    op isEnableBottom : Config Nat -> Nat .
+    ceq isEnableBottom(
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}, I) = 1 if I == 0 /\ J := sd(N,1) /\ E == E' .
+    eq isEnableBottom({OCs}, I) = 0 [owise] .
+
+    op isEnableOther : Config Nat -> Nat .
+    ceq isEnableOther(
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}, I) = 1 if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ E =/= E' .
+    eq isEnableOther({OCs}, I) = 0 [owise] .
+
+    *** rewrite rules
+    crl [bottomX] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: T) (ready[I]: false)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I == 0 /\ J := sd(N,1) /\ E == E' /\ T =/= T' .
+
+    crl [bottomY] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: T) (ready[I]: true)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I == 0 /\ J := sd(N,1) /\ E == E' /\ T == T' /\ (not T) /\ (not R) .
+
+    crl [bottomZ] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: (not T)) (ready[I]: false)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I == 0 /\ J := sd(N,1) /\ E == E' /\ T == T' /\ (T or R) .
+
+    crl [otherX] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: T) (ready[I]: false)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ E =/= E' /\ T == T' .
+
+    crl [otherY] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: T) (ready[I]: true)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ E =/= E' /\ T =/= T' /\ (not T) /\ (not R) .
+
+    crl [otherZ] :
+        {(enable[I]: E) (token[I]: T) (ready[I]: R)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    =>  {(enable[I]: (not E)) (token[I]: (not T)) (ready[I]: false)
+        (enable[J]: E') (token[J]: T')
+        (#pc: N) OCs}
+    if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ E =/= E' /\ T =/= T' /\ (T or R) .
+endm
+
+in model-checker .
+
+mod 3-BITS-PREDS is
+    pr 3-BITS .
+    inc SATISFACTION .
+    subsort Config < State .
+
+    op legal : -> Prop .
+    op illegal : -> Prop .
+
+    var C : Config .
+    var PROP : Prop .
+    var OCs :  Soup{OComp} .
+
+    eq {OCs} |= legal = (#enabled({OCs}) > 0) and (#token({OCs}) == 1) .
+    eq {OCs} |= illegal = (#enabled({OCs}) == 0) or (#token({OCs}) =/= 1) .
+    eq {OCs} |= PROP = false [owise] .
+endm
+
+mod 3-BITS-CHECK is
+    inc 3-BITS-PREDS .
+    inc MODEL-CHECKER .
+    inc LTL-SIMPLIFIER .
+
+    op cstable : -> Formula .
+    eq cstable =  (illegal) |-> [] legal .
+endm
+
+--- search [1] in 3-BITS : init =>! {OCs} .
+--- reduce in 3-BITS-CHECK : modelCheck(init, cstable) .
+--- reduce in 3-BITS-CHECK : modelCheck(init, [] legal) .
