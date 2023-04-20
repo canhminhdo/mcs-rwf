@@ -31,8 +31,8 @@ fmod CONFIG is
     op {_} : Soup{OComp} -> Config [ctor] .
     op init : -> Config .
     eq init = { (k-states: 5)
-                (#pc: 3)
-                (pc[0]: 0) (pc[1]: 1) (pc[2]: 0) } .
+                (#pc: 4)
+                (pc[0]: 0) (pc[1]: 2) (pc[2]: 2) (pc[3]: 0) } .
 endfm
 
 mod K-STATES is
@@ -61,10 +61,16 @@ mod K-STATES is
     eq isEnableOther({OCs}, I) = 0 [owise] .
 
     crl [bottom] : {(pc[J]: L) (pc[I]: S) (#pc: N) (k-states: K) OCs}
-    => {(pc[J]: L) (pc[I]: ((S + 1) rem K )) (#pc: N) (k-states: K) OCs} if I == 0 /\ J := sd(N,1) /\ L == S .
+    => {(pc[J]: L) (pc[I]: ((S + 1) rem K )) (#pc: N) (k-states: K) OCs}
+    if #enabled({(pc[J]: L) (pc[I]: S) (#pc: N) (k-states: K) OCs}) > 1
+    /\ I == 0 /\ J := sd(N,1) /\ L == S .
 
     crl [other] : {(pc[J]: L) (pc[I]: S) (#pc: N) OCs}
-    => {(pc[J]: L) (pc[I]: L)  (#pc: N) OCs} if I =/= 0 /\ J := ((sd(I,1)) rem N) /\ L =/= S .
+    => {(pc[J]: L) (pc[I]: L)  (#pc: N) OCs}
+    if #enabled({(pc[J]: L) (pc[I]: S) (#pc: N) OCs}) > 1
+    /\ I =/= 0 /\ J := ((sd(I,1)) rem N) /\ L =/= S .
+
+    crl [fin] : {OCs} => {OCs} if #enabled({OCs}) == 1 .
 endm
 
 in model-checker .
@@ -81,8 +87,8 @@ mod K-STATES-PREDS is
   var PROP : Prop .
   var OCs :  Soup{OComp} .
 
+  eq {OCs} |= illegal = #enabled({OCs}) > 1 .
   eq {OCs} |= legal = #enabled({OCs}) == 1 .
-  eq {OCs} |= illegal = #enabled({OCs}) =/= 1 .
   eq {OCs} |= PROP = false [owise] .
 endm
 
